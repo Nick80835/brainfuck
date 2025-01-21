@@ -14,13 +14,6 @@ fn read_file(filename: &str) -> Vec<String> {
     return out_lines;
 }
 
-#[derive(Clone, PartialEq)]
-struct Instruction {
-    pub opcode: char,
-    pub jump_addr: Option<usize>,
-    pub line: usize
-}
-
 fn main() {
     let args: Vec<String> = env::args().collect();
     let filepath: Option<&String>;
@@ -46,21 +39,34 @@ fn main() {
     );
 }
 
-fn tokenize_lines(lines: Vec<String>) -> Vec<Instruction> {
-    let code_tokens: Vec<Instruction> = vec![
-        Instruction { opcode: '<', jump_addr: None, line: 0 },
-        Instruction { opcode: '>', jump_addr: None, line: 0 },
-        Instruction { opcode: '+', jump_addr: None, line: 0 },
-        Instruction { opcode: '-', jump_addr: None, line: 0 },
-        Instruction { opcode: ',', jump_addr: None, line: 0 },
-        Instruction { opcode: '.', jump_addr: None, line: 0 },
-        Instruction { opcode: '[', jump_addr: None, line: 0 },
-        Instruction { opcode: ']', jump_addr: None, line: 0 },
+#[derive(Clone, PartialEq)]
+struct Token {
+    pub opcode: char,
+    pub jump_addr: Option<usize>,
+    pub line: usize,
+}
+
+impl Token {
+    fn inst(opcode: char) -> Self {
+        Self { opcode, jump_addr: None, line: 0 }
+    }
+}
+
+fn tokenize_lines(lines: Vec<String>) -> Vec<Token> {
+    let code_tokens: Vec<Token> = vec![
+        Token::inst('<'),
+        Token::inst('>'),
+        Token::inst('+'),
+        Token::inst('-'),
+        Token::inst(','),
+        Token::inst('.'),
+        Token::inst('['),
+        Token::inst(']'),
     ];
     let comment_tokens: Vec<char> = vec![
         '#', '/', ';'
     ];
-    let mut opcode_tokens: Vec<Instruction> = vec![];
+    let mut opcode_tokens: Vec<Token> = vec![];
     let mut scope_open_addrs: Vec<usize> = vec![];
 
     for (line_num, line) in lines.iter().enumerate() {
@@ -105,8 +111,8 @@ fn tokenize_lines(lines: Vec<String>) -> Vec<Instruction> {
     return opcode_tokens;
 }
 
-fn run_brainfuck(opcode_tokens: Vec<Instruction>, strict: bool) {
-    let opcode_tokens: Vec<Instruction> = opcode_tokens.to_owned();
+fn run_brainfuck(opcode_tokens: Vec<Token>, strict: bool) {
+    let opcode_tokens: Vec<Token> = opcode_tokens.to_owned();
     let mut inst_ptr: usize = 0;
     let mut data_ptr: usize = 0;
     let mut data_cells: [u8; 32768] = [0; 32768];
@@ -114,7 +120,7 @@ fn run_brainfuck(opcode_tokens: Vec<Instruction>, strict: bool) {
     let term: Term = Term::stdout();
 
     while inst_ptr < opcode_tokens.len() {
-        let curr_inst: &Instruction = &opcode_tokens[inst_ptr];
+        let curr_inst: &Token = &opcode_tokens[inst_ptr];
 
         match curr_inst.opcode {
             '<' => { // decrement data pointer
