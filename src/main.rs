@@ -40,6 +40,13 @@ fn main() {
         std::process::exit(1);
     }
 
+    run_brainfuck(
+        tokenize_lines(read_file(&filepath.unwrap())),
+        strict
+    );
+}
+
+fn tokenize_lines(lines: Vec<String>) -> Vec<Instruction> {
     let code_tokens: Vec<Instruction> = vec![
         Instruction { opcode: '<', jump_addr: None, line: 0 },
         Instruction { opcode: '>', jump_addr: None, line: 0 },
@@ -56,7 +63,7 @@ fn main() {
     let mut opcode_tokens: Vec<Instruction> = vec![];
     let mut scope_open_addrs: Vec<usize> = vec![];
 
-    for (line_num, line) in read_file(&filepath.unwrap()).iter().enumerate() {
+    for (line_num, line) in lines.iter().enumerate() {
         for character in line.chars() {
             let found_token = code_tokens.iter().find(
                 |&c| c.opcode == character
@@ -95,7 +102,7 @@ fn main() {
 
     // ensure we have no dangling '['
     assert_eq!(scope_open_addrs.len(), 0);
-    run_brainfuck(opcode_tokens, strict);
+    return opcode_tokens;
 }
 
 fn run_brainfuck(opcode_tokens: Vec<Instruction>, strict: bool) {
