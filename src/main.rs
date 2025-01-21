@@ -116,19 +116,11 @@ fn run_brainfuck(opcode_tokens: Vec<Instruction>) {
                 inst_ptr += 1;
             }
             '+' => { // increment byte at data pointer
-                if data_cells[data_ptr] < u8::MAX {
-                    data_cells[data_ptr] += 1;
-                } else {
-                    data_cells[data_ptr] = 0;
-                }
+                data_cells[data_ptr] = data_cells[data_ptr].wrapping_add(1);
                 inst_ptr += 1;
             }
             '-' => { // decrement byte at data pointer
-                if data_cells[data_ptr] > 0 {
-                    data_cells[data_ptr] -= 1;
-                } else {
-                    data_cells[data_ptr] = u8::MAX;
-                }
+                data_cells[data_ptr] = data_cells[data_ptr].wrapping_sub(1);
                 inst_ptr += 1;
             }
             '.' => { // output byte at data pointer
