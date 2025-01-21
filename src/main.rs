@@ -4,7 +4,7 @@ use std::io::{self, Write};
 
 use console::Term;
 
-pub fn read_file(filename: &str) -> Vec<String> {
+fn read_file(filename: &str) -> Vec<String> {
     let mut out_lines: Vec<String> = vec![];
 
     for line in read_to_string(filename).unwrap().lines() {
@@ -14,20 +14,29 @@ pub fn read_file(filename: &str) -> Vec<String> {
     return out_lines;
 }
 
-#[derive(PartialEq)]
-#[derive(Clone)]
-pub struct Instruction {
+#[derive(Clone, PartialEq)]
+struct Instruction {
     pub opcode: char,
     pub jump_addr: Option<usize>,
     pub line: usize
 }
 
 fn main() {
-    // parse filepath argument
     let args: Vec<String> = env::args().collect();
+    let filepath: Option<&String>;
+    let mut strict: bool = false;
 
-    if args.len() != 2 {
-        eprintln!("Usage: {} <filepath>", args[0]);
+    if args.len() < 2 {
+        eprintln!("Usage: {} [--strict] <filepath>", args[0]);
+        std::process::exit(1);
+    } else if args.len() == 2 {
+        // filepath only
+        filepath = Some(&args[1]);
+    } else if args.len() == 3 {
+        strict = args[1] == "--strict";
+        filepath = Some(&args[2]);
+    } else {
+        eprintln!("Usage: {} [--strict] <filepath>", args[0]);
         std::process::exit(1);
     }
 
@@ -47,7 +56,7 @@ fn main() {
     let mut opcode_tokens: Vec<Instruction> = vec![];
     let mut scope_open_addrs: Vec<usize> = vec![];
 
-    for (line_num, line) in read_file(&args[1]).iter().enumerate() {
+    for (line_num, line) in read_file(&filepath.unwrap()).iter().enumerate() {
         for character in line.chars() {
             let found_token = code_tokens.iter().find(
                 |&c| c.opcode == character
@@ -86,10 +95,10 @@ fn main() {
 
     // ensure we have no dangling '['
     assert_eq!(scope_open_addrs.len(), 0);
-    run_brainfuck(opcode_tokens);
+    run_brainfuck(opcode_tokens, strict);
 }
 
-fn run_brainfuck(opcode_tokens: Vec<Instruction>) {
+fn run_brainfuck(opcode_tokens: Vec<Instruction>, strict: bool) {
     let opcode_tokens: Vec<Instruction> = opcode_tokens.to_owned();
     let mut inst_ptr: usize = 0;
     let mut data_ptr: usize = 0;
@@ -98,10 +107,17 @@ fn run_brainfuck(opcode_tokens: Vec<Instruction>) {
     let term: Term = Term::stdout();
 
     while inst_ptr < opcode_tokens.len() {
-        match opcode_tokens[inst_ptr].opcode {
+        let curr_inst: &Instruction = &opcode_tokens[inst_ptr];
+
+        match curr_inst.opcode {
             '<' => { // decrement data pointer
                 if data_ptr > 0 {
                     data_ptr -= 1;
+                } else if strict {
+                    panic!(
+                        "\nAttempted data pointer underflow in strict mode at line {}.",
+                        curr_inst.line
+                    )
                 } else {
                     data_ptr = data_size;
                 }
@@ -110,17 +126,40 @@ fn run_brainfuck(opcode_tokens: Vec<Instruction>) {
             '>' => { // increment data pointer
                 if data_ptr < data_size {
                     data_ptr += 1;
+                } else if strict {
+                    panic!(
+                        "\nAttempted data pointer overflow in strict mode at line {}.",
+                        curr_inst.line
+                    )
                 } else {
                     data_ptr = 0;
                 }
                 inst_ptr += 1;
             }
             '+' => { // increment byte at data pointer
-                data_cells[data_ptr] = data_cells[data_ptr].wrapping_add(1);
+                if strict {
+                    data_cells[data_ptr] = data_cells[data_ptr].checked_add(1).expect(
+                        &format!(
+                            "\nAttempted data cell overflow in strict mode at line {}.",
+                            curr_inst.line
+                        )
+                    );
+                } else {
+                    data_cells[data_ptr] = data_cells[data_ptr].wrapping_add(1);
+                }
                 inst_ptr += 1;
             }
             '-' => { // decrement byte at data pointer
-                data_cells[data_ptr] = data_cells[data_ptr].wrapping_sub(1);
+                if strict {
+                    data_cells[data_ptr] = data_cells[data_ptr].checked_sub(1).expect(
+                        &format!(
+                            "\nAttempted data cell underflow in strict mode at line {}.",
+                            curr_inst.line
+                        )
+                    );
+                } else {
+                    data_cells[data_ptr] = data_cells[data_ptr].wrapping_sub(1);
+                }
                 inst_ptr += 1;
             }
             '.' => { // output byte at data pointer
@@ -130,27 +169,27 @@ fn run_brainfuck(opcode_tokens: Vec<Instruction>) {
             }
             ',' => { // read one byte of input
                 let in_buf: u8 = term.read_char().expect(
-                    &format!("\nFailure to read char from terminal at line {}!", opcode_tokens[inst_ptr].line)
+                    &format!("\nFailure to read char from terminal at line {}!", curr_inst.line)
                 ) as u8;
                 data_cells[data_ptr] = in_buf;
                 inst_ptr += 1;
             }
             '[' => { // jump forward if data is zero
                 if data_cells[data_ptr] == 0 {
-                    inst_ptr = opcode_tokens[inst_ptr].jump_addr.unwrap() + 1;
+                    inst_ptr = curr_inst.jump_addr.unwrap() + 1;
                 } else {
                     inst_ptr += 1;
                 }
             }
             ']' => { // jump back if data is non-zero
                 if data_cells[data_ptr] != 0 {
-                    inst_ptr = opcode_tokens[inst_ptr].jump_addr.unwrap() + 1;
+                    inst_ptr = curr_inst.jump_addr.unwrap() + 1;
                 } else {
                     inst_ptr += 1;
                 }
             }
             _ => {
-                println!("\nUnknown instruction at line {}, skipping: {}", opcode_tokens[inst_ptr].line, opcode_tokens[inst_ptr].opcode);
+                println!("\nUnknown instruction at line {}, skipping: {}", curr_inst.line, curr_inst.opcode);
                 inst_ptr += 1;
             }
         }
