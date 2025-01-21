@@ -1,0 +1,17 @@
+[package]
+name = "brainfuck"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+console = "0.15.10"
+
+[profile.dev]
+opt-level = 1
+debug = true
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+panic = "abort"
